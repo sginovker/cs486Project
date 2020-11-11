@@ -4,7 +4,7 @@ from unittest import TestCase
 from src.d3 import euclidean_distance
 
 
-class Test(TestCase):
+class TestEuclideanDistance(TestCase):
     def test_euclidean_distance_empty(self):
         self.assertAlmostEqual(
             euclidean_distance([], []),

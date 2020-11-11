@@ -5,7 +5,7 @@ import pandas as pd
 
 def euclidean_distance(row1, row2):
     """Calculate the Euclidean distance between two vectors"""
-    return math.sqrt(sum((x - y) ** 2 for x, y in zip(row1, row2)))
+    return math.sqrt(sum(math.pow(x - y, 2) for x, y in zip(row1, row2)))
 
 
 def get_neighbors(train, test_row, k):
