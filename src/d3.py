@@ -1,15 +1,11 @@
-from math import sqrt
+import math
 
 import pandas as pd
-from sklearn.model_selection import cross_validate
 
 
 def euclidean_distance(row1, row2):
     """Calculate the Euclidean distance between two vectors"""
-    distance = 0.0
-    for i in range(len(row1) - 1):
-        distance += (row1[i] - row2[i]) ** 2
-    return sqrt(distance)
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(row1, row2)))
 
 
 def get_neighbors(train, test_row, k):
