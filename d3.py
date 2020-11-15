@@ -54,7 +54,7 @@ print("Making nxm matrix")
 matrix = pd.pivot_table(df,values='Rating',index='CustomerID',columns='MovieID')
 # movieid to movie title data
 movieNames = pd.read_csv(BUCKET_PATH + 'movie_titles.csv',encoding = "ISO-8859-1", header = None, names = ['MovieID', 'Name'],usecols = [0,2])
-movieNames.set_index('MovieID', inplace=True)
+#movieNames.set_index('MovieID', inplace=True)
 print (movieNames.head(10))
 print(matrix.head(10))
 #TODO:add col to signify if user has rated given movie 
@@ -79,10 +79,12 @@ def predict(row_index=0):
     k = 10
     neighbours = get_neighbours(matrix, matrix.iloc[[row_index]], k)
     for neighbour in neighbours:
+        print(neighbour)
         neighbour.fillna(avgs, inplace=True)
-    neighbours_combined = pd.concat(map(lambda x: x.to_frame(), neighbours))
+        print(neighbour.to_frame())
+    neighbours_combined = pd.concat(map(lambda x: x.to_frame().transpose(), neighbours))
     print(neighbours_combined)
-    scores = neighbours_combined.sum(axis=1)
+    scores = neighbours_combined.sum(axis=0)
     print(scores)
     top_10_movies = scores.nlargest(10)
     return top_10_movies
@@ -90,3 +92,4 @@ avgs = matrix.mean(axis=0, skipna=True)
 #matrix.fillna(avgs, inplace=True)
 top_10_movies = predict()
 print(top_10_movies)
+print(movieNames[movieNames['MovieID'].isin(top_10_movies.index)])
