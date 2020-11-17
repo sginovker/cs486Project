@@ -75,16 +75,23 @@ train.iterrows()]
         distances.sort(key=lambda tup: tup[1], reverse=True)
         neighbours = [distances[i][0] for i in range(k)]
         return neighbours
+def movies_not_seen(row_index):
+    customer_row = matrix.iloc[[row_index]].transpose()
+    print("CUSTOMER ROW: ", customer_row)
+    print(customer_row.columns[0])
+    customer_row = customer_row[customer_row[customer_row.columns[0]].isnull()]
+    print("DROPPED NON-NA: ", customer_row)
+    return customer_row
 def predict(row_index=0):
     k = 10
+    unseen_movies = movies_not_seen(row_index)
     neighbours = get_neighbours(matrix, matrix.iloc[[row_index]], k)
     for neighbour in neighbours:
-        print(neighbour)
         neighbour.fillna(avgs, inplace=True)
-        print(neighbour.to_frame())
     neighbours_combined = pd.concat(map(lambda x: x.to_frame().transpose(), neighbours))
-    print(neighbours_combined)
     scores = neighbours_combined.sum(axis=0)
+    print(scores)
+    scores = scores.filter(items=unseen_movies.index)
     print(scores)
     top_10_movies = scores.nlargest(10)
     return top_10_movies
