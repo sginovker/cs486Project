@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from surprise.model_selection import cross_validate
 from math import sqrt
+
 #data combining+formatting
 BUCKET_PATH = "gs://cs486-unrecommendation-engine/"
 df = pd.DataFrame()
@@ -20,16 +21,20 @@ df_nan = df_nan.reset_index()
 movie_np = []
 movie_id = 1
 print("before movie_np")
+
 for i,j in zip(df_nan['index'][1:],df_nan['index'][:-1]):
     # numpy approach
     temp = np.full((1,i-j-1), movie_id)
     movie_np = np.append(movie_np, temp)
     movie_id += 1
+
 print("movie_np")
+
 # Account for last record and corresponding length
 # numpy approach
 last_record = np.full((1,len(df) - df_nan.iloc[-1, 0] - 1),movie_id)
 movie_np = np.append(movie_np, last_record)
+
 # remove those Movie ID rows
 df = df[pd.notnull(df['Rating'])]
 df['MovieID'] = movie_np.astype(int)
@@ -57,6 +62,7 @@ movieNames = pd.read_csv(BUCKET_PATH + 'movie_titles.csv',encoding = "ISO-8859-1
 #movieNames.set_index('MovieID', inplace=True)
 print (movieNames.head(10))
 print(matrix.head(10))
+
 #TODO:add col to signify if user has rated given movie 
 #TODO:substitute any nulls with mean 
 #TODO:do 5-fold cross validation
