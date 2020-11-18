@@ -1,7 +1,8 @@
-import pandas as pd 
+import pandas as pd
 import numpy as np
 from surprise.model_selection import cross_validate
 from math import sqrt
+from collections import defaultdict
 
 #data combining+formatting
 BUCKET_PATH = "gs://cs486-unrecommendation-engine/"
@@ -54,6 +55,11 @@ cust_benchmark = round(df_cust_summary['count'].quantile(quantile),0)
 drop_cust_list = df_cust_summary[df_cust_summary['count'] < cust_benchmark].index
 df = df[~df['MovieID'].isin(drop_movie_list)]
 df = df[~df['CustomerID'].isin(drop_cust_list)]
+print(len(df))
+user_ratings = defaultdict(dict)
+for i, row in df.iterrows():
+    user_ratings[row.CustomerID][row.MovieID] = row.Rating
+#print(user_ratings)
 print("Making nxm matrix")
 # nxm matrix (customer x movie)
 matrix = pd.pivot_table(df,values='Rating',index='CustomerID',columns='MovieID')
@@ -61,48 +67,77 @@ matrix = pd.pivot_table(df,values='Rating',index='CustomerID',columns='MovieID')
 movieNames = pd.read_csv(BUCKET_PATH + 'movie_titles.csv',encoding = "ISO-8859-1", header = None, names = ['MovieID', 'Name'],usecols = [0,2])
 #movieNames.set_index('MovieID', inplace=True)
 print (movieNames.head(10))
-print(matrix.head(10))
+print(matrix)
 
 #TODO:add col to signify if user has rated given movie 
 #TODO:substitute any nulls with mean 
 #TODO:do 5-fold cross validation
 #copy pasta starts HERE
 # calculate the Euclidean distance between two vectors
-def euclidean_distance(row1, row2):
+def euclidean_distance(id1, id2):
         distance = 0.0
-        for i in range(len(row1)-1):
-                distance += (row1[i] - row2[i])**2
-        return sqrt(distance)
+        if len(user_ratings[id1]) >= len(user_ratings[id2]):
+            id1, id2 = id2, id1
+        movies_rated = 0
+        for movie in user_ratings[id1]:
+            if movie in user_ratings[id2]:
+                movies_rated += 1
+                distance += (user_ratings[id1][movie] - user_ratings[id2][movie])**2
+        return [distance, movies_rated]
 # Locate the most DISsimilar neighbors
 #I have modified this by adding "reverse=true"
-def get_neighbours(train, test_row, k):
-        distances = [(train_row, euclidean_distance(test_row, train_row)) for i,train_row in 
-train.iterrows()]
-        distances.sort(key=lambda tup: tup[1], reverse=True)
-        neighbours = [distances[i][0] for i in range(k)]
-        return neighbours
+def get_neighbours(train, test_index, k):
+        min_movies = 3
+        distances = [(train.loc[i], euclidean_distance(train.iloc[[test_index]].index[0], i)) for i in train.index]
+        distances_meeting_min_movies = list(filter(lambda x: x[1][1] >= min_movies, distances))
+        distances.sort(key=lambda tup: tup[1][0], reverse=True)
+        distances_meeting_min_movies.sort(key=lambda tup: tup[1][0])
+        print([distance[1] for distance in distances[:5]])
+        furthest_neighbours = [distances[i][0] for i in range(k)]
+        nearest_neighbours = [distance[0] for distance in distances_meeting_min_movies[:k]]
+        return furthest_neighbours, nearest_neighbours
 def movies_not_seen(row_index):
     customer_row = matrix.iloc[[row_index]].transpose()
-    print("CUSTOMER ROW: ", customer_row)
-    print(customer_row.columns[0])
     customer_row = customer_row[customer_row[customer_row.columns[0]].isnull()]
-    print("DROPPED NON-NA: ", customer_row)
     return customer_row
 def predict(row_index=0):
-    k = 10
+    k = 20
+    percent_of_neighbours_rated = 0.25
     unseen_movies = movies_not_seen(row_index)
-    neighbours = get_neighbours(matrix, matrix.iloc[[row_index]], k)
-    for neighbour in neighbours:
-        neighbour.fillna(avgs, inplace=True)
-    neighbours_combined = pd.concat(map(lambda x: x.to_frame().transpose(), neighbours))
-    scores = neighbours_combined.sum(axis=0)
-    print(scores)
-    scores = scores.filter(items=unseen_movies.index)
-    print(scores)
-    top_10_movies = scores.nlargest(10)
-    return top_10_movies
+    furthest_neighbours, nearest_neighbours = get_neighbours(matrix, row_index, k)
+    furthest_neighbours_combined = pd.concat(map(lambda x: x.to_frame().transpose(), furthest_neighbours))
+    nearest_neighbours_combined = pd.concat(map(lambda x: x.to_frame().transpose(), nearest_neighbours))
+    not_enough_ratings = []
+    for column in furthest_neighbours_combined.columns:
+        if len(furthest_neighbours_combined[column].dropna()) < percent_of_neighbours_rated*k:
+            not_enough_ratings.append(column)
+    furthest_neighbours_combined.drop(columns=not_enough_ratings, inplace=True)
+    not_enough_ratings = []
+    for column in nearest_neighbours_combined.columns:
+        if len(nearest_neighbours_combined[column].dropna()) < percent_of_neighbours_rated*k:
+            not_enough_ratings.append(column)
+    nearest_neighbours_combined.drop(columns=not_enough_ratings, inplace=True)
+    furthest_scores = furthest_neighbours_combined.mean(axis=0, skipna=True)
+    nearest_scores = nearest_neighbours_combined.mean(axis=0, skipna=True)
+    furthest_scores = furthest_scores.filter(items=unseen_movies.index)
+    nearest_scores = nearest_scores.filter(items=unseen_movies.index)
+    top_10_furthest_movies = furthest_scores.nlargest(10)
+    top_10_nearest_movies = nearest_scores.nlargest(10)
+    return top_10_furthest_movies, top_10_nearest_movies
 avgs = matrix.mean(axis=0, skipna=True)
 #matrix.fillna(avgs, inplace=True)
-top_10_movies = predict()
-print(top_10_movies)
-print(movieNames[movieNames['MovieID'].isin(top_10_movies.index)])
+fs_ns = []
+for i in range(5):
+    print("CUSTOMER", i)
+    f, n = predict(i)
+    fs_ns.append((f, n))
+    print("FARTHEST:\n", f)
+    print("NEAREST:\n", n)
+    print(movieNames[movieNames['MovieID'].isin(f.index)])
+    print(movieNames[movieNames['MovieID'].isin(n.index)])
+for i,e in enumerate(fs_ns):
+    print("OVERLAP", i)
+    f, n = e
+    print(len(set(f.index).intersection(set(n.index))))
+    print("FARTHEST QUALITY:", [avgs.loc[k] for k in f.index])
+    print("NEAREST QUALTY:", [avgs.loc[k] for k in n.index])
