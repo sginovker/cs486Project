@@ -1,0 +1,102 @@
+# Operating systems
+## MacOS
+## https://github.com/github/gitignore/blob/2bb963b16a1957c865335e53537036c2e97399b5/Global/macOS.gitignore
+### General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+### Icon must end with two \r
+Icon
+
+### Thumbnails
+._*
+
+### Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+### Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+
+# C++
+## Prerequisites
+*.d
+
+## Compiled object files
+*.slo
+*.lo
+*.o
+*.obj
+
+## Compiled dynamic libraries
+*.so
+
+
+# JavaScript
+node_modules/
+
+
+# Racket
+*.rkt~
+
+
+# Python
+## Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+## Virtualenv
+env/
+venv/
+.env/
+.venv/
+
+## PyInstaller
+*.manifest
+*.spec
+
+## Ansible
+*.retry
+
+## Packaging
+*.egg-info
+
+## Django
+local_settings.py
+
+
+# Editors
+## JetBrains
+.idea/
+
+
+# Language independent files
+## Logs
+*.log
+
+## Database
+*.sqlite3
+*.sqlite
+
+## Build
+.gradle/
+build/
+dist/
+
+## Executables
+*.exe
+*.out
+*.app
+
