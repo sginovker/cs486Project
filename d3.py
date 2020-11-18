@@ -3,18 +3,17 @@ import numpy as np
 from surprise.model_selection import cross_validate
 from math import sqrt
 from collections import defaultdict
-#data combining+formatting
+
 BUCKET_PATH = "gs://cs486-unrecommendation-engine/"
 df = pd.DataFrame()
 for i in map(str, range(1, 2)):
     print(i)
     df = df.append(pd.read_csv(BUCKET_PATH + 'combined_data_{}.txt'.format(i),header = None, 
 names = ['CustomerID', 'Rating'], usecols = [0,1]))
-#concat all data
 df['Rating'] = df['Rating'].astype(float)
 print("Done with files")
-# add movieid col - courtesy of https://www.kaggle.com/laowingkin/netflix-movie-recommendatio
-#Data-manipulation
+
+# add movieid col - courtesy of https://www.kaggle.com/laowingkin/netflix-movie-recommendation
 df_nan = pd.DataFrame(pd.isnull(df.Rating))
 df_nan = df_nan[df_nan['Rating'] == True]
 df_nan = df_nan.reset_index()
@@ -22,19 +21,17 @@ movie_np = []
 movie_id = 1
 print("before movie_np")
 for i,j in zip(df_nan['index'][1:],df_nan['index'][:-1]):
-    # numpy approach
     temp = np.full((1,i-j-1), movie_id)
     movie_np = np.append(movie_np, temp)
     movie_id += 1
 print("movie_np")
-# Account for last record and corresponding length
-# numpy approach
 last_record = np.full((1,len(df) - df_nan.iloc[-1, 0] - 1),movie_id)
 movie_np = np.append(movie_np, last_record)
-# remove those Movie ID rows
+
 df = df[pd.notnull(df['Rating'])]
 df['MovieID'] = movie_np.astype(int)
 df['CustomerID'] = df['CustomerID'].astype(int)
+
 # courtesy of https://www.kaggle.com/laowingkin/netflix-movie-recommendation#Data-manipulatio
 # get rid of data that is too sparse so it actually loads rip
 f=['count','mean']
@@ -54,46 +51,45 @@ print(len(df))
 user_ratings = defaultdict(dict)
 for i, row in df.iterrows():
     user_ratings[row.CustomerID][row.MovieID] = row.Rating
-#print(user_ratings)
+
 print("Making nxm matrix")
-# nxm matrix (customer x movie)
+
 matrix = pd.pivot_table(df,values='Rating',index='CustomerID',columns='MovieID')
-# movieid to movie title data
+
 movieNames = pd.read_csv(BUCKET_PATH + 'movie_titles.csv',encoding = "ISO-8859-1", header = None, names = ['MovieID', 'Name'],usecols = [0,2])
-#movieNames.set_index('MovieID', inplace=True)
+
 print (movieNames.head(10))
 print(matrix)
-#TODO:add col to signify if user has rated given movie 
-#TODO:substitute any nulls with mean 
-#TODO:do 5-fold cross validation
-#copy pasta starts HERE
-# calculate the Euclidean distance between two vectors
+
 def euclidean_distance(id1, id2):
-        distance = 0.0
-        if len(user_ratings[id1]) >= len(user_ratings[id2]):
-            id1, id2 = id2, id1
-        movies_rated = 0
-        for movie in user_ratings[id1]:
-            if movie in user_ratings[id2]:
-                movies_rated += 1
-                distance += (user_ratings[id1][movie] - user_ratings[id2][movie])**2
-        return [distance, movies_rated]
+    distance = 0.0
+    if len(user_ratings[id1]) >= len(user_ratings[id2]):
+        id1, id2 = id2, id1
+    movies_rated = 0
+    for movie in user_ratings[id1]:
+        if movie in user_ratings[id2]:
+            movies_rated += 1
+            distance += (user_ratings[id1][movie] - user_ratings[id2][movie])**2
+    return [distance, movies_rated]
+
 # Locate the most DISsimilar neighbors
 #I have modified this by adding "reverse=true"
 def get_neighbours(train, test_index, k):
-        min_movies = 3
-        distances = [(train.loc[i], euclidean_distance(train.iloc[[test_index]].index[0], i)) for i in train.index]
-        distances_meeting_min_movies = list(filter(lambda x: x[1][1] >= min_movies, distances))
-        distances.sort(key=lambda tup: tup[1][0], reverse=True)
-        distances_meeting_min_movies.sort(key=lambda tup: tup[1][0])
-        print([distance[1] for distance in distances[:5]])
-        furthest_neighbours = [distances[i][0] for i in range(k)]
-        nearest_neighbours = [distance[0] for distance in distances_meeting_min_movies[:k]]
-        return furthest_neighbours, nearest_neighbours
+    min_movies = 3
+    distances = [(train.loc[i], euclidean_distance(train.iloc[[test_index]].index[0], i)) for i in train.index]
+    distances_meeting_min_movies = list(filter(lambda x: x[1][1] >= min_movies, distances))
+    distances.sort(key=lambda tup: tup[1][0], reverse=True)
+    distances_meeting_min_movies.sort(key=lambda tup: tup[1][0])
+    print([distance[1] for distance in distances[:5]])
+    furthest_neighbours = [distances[i][0] for i in range(k)]
+    nearest_neighbours = [distance[0] for distance in distances_meeting_min_movies[:k]]
+    return furthest_neighbours, nearest_neighbours
+
 def movies_not_seen(row_index):
     customer_row = matrix.iloc[[row_index]].transpose()
     customer_row = customer_row[customer_row[customer_row.columns[0]].isnull()]
     return customer_row
+
 def predict(row_index=0):
     k = 20
     percent_of_neighbours_rated = 0.25
@@ -118,9 +114,11 @@ def predict(row_index=0):
     top_10_furthest_movies = furthest_scores.nlargest(10)
     top_10_nearest_movies = nearest_scores.nlargest(10)
     return top_10_furthest_movies, top_10_nearest_movies
+
 avgs = matrix.mean(axis=0, skipna=True)
-#matrix.fillna(avgs, inplace=True)
+
 fs_ns = []
+
 for i in range(5):
     print("CUSTOMER", i)
     f, n = predict(i)
@@ -129,6 +127,7 @@ for i in range(5):
     print("NEAREST:\n", n)
     print(movieNames[movieNames['MovieID'].isin(f.index)])
     print(movieNames[movieNames['MovieID'].isin(n.index)])
+
 for i,e in enumerate(fs_ns):
     print("OVERLAP", i)
     f, n = e
